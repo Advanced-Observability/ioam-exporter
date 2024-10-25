@@ -121,6 +121,7 @@ func readMessage(msg genetlink.Message) error {
 	return nil
 }
 
+// printNodes prints the IOAMData structs to the console
 func printNodes(nodes []IOAMData) {
 	for _, node := range nodes {
 		fmt.Printf("TraceType: %x, NodeId: %d, IngressId: %d, EgressId: %d, Timestamp: %d.%d, TransitDelay: %d, NamespaceData: %d, QueueDepth: %d, CsumComp: %d, IdWide: %d, IngressIdWide: %d, EgressIdWide: %d, NamespaceDataWide: %d, BufferOccupancy: %d, OssLen: %d, OssSchema: %d",
@@ -134,11 +135,9 @@ func printNodes(nodes []IOAMData) {
 
 // extractIOAMData parses the netlink attributes into IOAMData structures
 func extractIOAMData(attrs []netlink.Attribute) ([]IOAMData, error) {
-
-	//var nodeLen uint8 = attrs[1].Data[0]
-	//var traceType uint32 = binary.BigEndian.Uint32(attrs[2].Data)
 	var nodeLen uint8
 	var traceType uint32
+	var data []byte
 	for _, attr := range attrs {
 		switch attr.Type {
 		case IOAM6_EVENT_ATTR_TRACE_NAMESPACE:
@@ -148,12 +147,11 @@ func extractIOAMData(attrs []netlink.Attribute) ([]IOAMData, error) {
 		case IOAM6_EVENT_ATTR_TRACE_TYPE:
 			traceType = binary.LittleEndian.Uint32(attr.Data) >> 8
 		case IOAM6_EVENT_ATTR_TRACE_DATA:
-			continue
+			data = attr.Data
 		}
 	}
 
 	var nodes []IOAMData
-	data := attrs[3].Data
 	offset := 0
 	for offset < len(data) {
 		node, err := parseNodeData(data[offset:offset+int(nodeLen)*4], traceType)

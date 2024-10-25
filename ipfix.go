@@ -66,40 +66,7 @@ func createIPFIXMessage(data []IOAMData) ([]byte, error) {
 
 	// For each IOAMData in the slice, encode the data and append it to the IPFIX message
 	for _, d := range data {
-		binary.Write(&buf, binary.BigEndian, d.TraceType)
-		buf.WriteByte(d.HopLimit)
-		binary.Write(&buf, binary.BigEndian, []byte{
-			byte(d.NodeId),
-			byte(d.NodeId >> 8),
-			byte(d.NodeId >> 16),
-		}) // 24-bit Node ID
-		binary.Write(&buf, binary.BigEndian, d.IngressId)
-		binary.Write(&buf, binary.BigEndian, d.EgressId)
-		binary.Write(&buf, binary.BigEndian, d.TimestampSecs)
-		binary.Write(&buf, binary.BigEndian, d.TimestampFrac)
-		binary.Write(&buf, binary.BigEndian, d.TransitDelay)
-		binary.Write(&buf, binary.BigEndian, d.NamespaceData)
-		binary.Write(&buf, binary.BigEndian, d.QueueDepth)
-		binary.Write(&buf, binary.BigEndian, d.CsumComp)
-		binary.Write(&buf, binary.BigEndian, []byte{
-			byte(d.IdWide),
-			byte(d.IdWide >> 8),
-			byte(d.IdWide >> 16),
-			byte(d.IdWide >> 24),
-			byte(d.IdWide >> 32),
-			byte(d.IdWide >> 40),
-			byte(d.IdWide >> 48),
-		}) // 56-bit IdWide
-		binary.Write(&buf, binary.BigEndian, d.IngressIdWide)
-		binary.Write(&buf, binary.BigEndian, d.EgressIdWide)
-		binary.Write(&buf, binary.BigEndian, d.NamespaceDataWide)
-		binary.Write(&buf, binary.BigEndian, d.BufferOccupancy)
-
-		// Write Snapshot variable element
-		buf.WriteByte(4 * d.OssLen)
-		if d.Snapshot != nil {
-			buf.Write(d.Snapshot)
-		}
+		encodeIOAMData(&buf, d)
 	}
 
 	// Update length in IPFIX header (total length of the message)
@@ -181,4 +148,42 @@ func createIOAMTemplateSet() ([]byte, error) {
 	binary.BigEndian.PutUint16(packet[setHeaderPos+2:setHeaderPos+4], uint16(setLength))
 
 	return packet, nil
+}
+
+// encodeIOAMData encodes an IOAMData struct into a byte slice
+func encodeIOAMData(buf *bytes.Buffer, d IOAMData) {
+	binary.Write(buf, binary.BigEndian, d.TraceType)
+	buf.WriteByte(d.HopLimit)
+	binary.Write(buf, binary.BigEndian, []byte{
+		byte(d.NodeId),
+		byte(d.NodeId >> 8),
+		byte(d.NodeId >> 16),
+	}) // 24-bit Node ID
+	binary.Write(buf, binary.BigEndian, d.IngressId)
+	binary.Write(buf, binary.BigEndian, d.EgressId)
+	binary.Write(buf, binary.BigEndian, d.TimestampSecs)
+	binary.Write(buf, binary.BigEndian, d.TimestampFrac)
+	binary.Write(buf, binary.BigEndian, d.TransitDelay)
+	binary.Write(buf, binary.BigEndian, d.NamespaceData)
+	binary.Write(buf, binary.BigEndian, d.QueueDepth)
+	binary.Write(buf, binary.BigEndian, d.CsumComp)
+	binary.Write(buf, binary.BigEndian, []byte{
+		byte(d.IdWide),
+		byte(d.IdWide >> 8),
+		byte(d.IdWide >> 16),
+		byte(d.IdWide >> 24),
+		byte(d.IdWide >> 32),
+		byte(d.IdWide >> 40),
+		byte(d.IdWide >> 48),
+	}) // 56-bit IdWide
+	binary.Write(buf, binary.BigEndian, d.IngressIdWide)
+	binary.Write(buf, binary.BigEndian, d.EgressIdWide)
+	binary.Write(buf, binary.BigEndian, d.NamespaceDataWide)
+	binary.Write(buf, binary.BigEndian, d.BufferOccupancy)
+
+	// Write Snapshot variable element
+	buf.WriteByte(4 * d.OssLen)
+	if d.Snapshot != nil {
+		buf.Write(d.Snapshot)
+	}
 }
