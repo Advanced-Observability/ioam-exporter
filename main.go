@@ -5,13 +5,18 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"os"
+	"time"
 
 	"github.com/mdlayher/genetlink"
 	"github.com/mdlayher/netlink"
 )
 
 const (
+	STATS_FILE = "./exporterStats"
+
 	ULIEGE_PEN_IANA = 10383
 	TEMPLATE_ID     = 293 // Must be higher than 255 (arbitrary)
 	IPFIX_DOMAIN_ID = 1
@@ -39,9 +44,12 @@ const (
 	traceTypeBit22Mask = 1 << 1
 )
 
-var SEQ_NUM uint32 = 0
-var COLLECTOR_ADDR string
-var CONSOLE_OUT bool
+var (
+	SEQ_NUM            uint32 = 0
+	COLLECTOR_ADDR     string
+	CONSOLE_OUT        bool
+	IOAM_MESSAGE_COUNT uint64 = 0
+)
 
 func main() {
 	// Argument parsing
@@ -49,7 +57,7 @@ func main() {
 	flag.BoolVar(&CONSOLE_OUT, "o", false, "Print traces to console")
 	showHelp := flag.Bool("h", false, "View help")
 	flag.Parse()
-	if *showHelp || COLLECTOR_ADDR == "" {
+	if *showHelp || (COLLECTOR_ADDR == "" && !CONSOLE_OUT) {
 		flag.PrintDefaults()
 		return
 	}
@@ -60,6 +68,8 @@ func main() {
 		log.Fatalf("failed to create genetlink connection: %v", err)
 	}
 	defer conn.Close()
+
+	conn.SetReadBuffer(1024 * 1024)
 
 	// Get genetlink IOAM6 family ID
 	family, err := conn.GetFamily(IOAM6_GENL_NAME)
@@ -81,6 +91,9 @@ func main() {
 	if err := conn.JoinGroup(IOAM6_GENL_GROUP_ID); err != nil {
 		log.Fatalf("failed to subscribe to multicast group: %v", err)
 	}
+
+	go writeStats(STATS_FILE)
+	fmt.Println("[IOAM EXPORTER] Started")
 
 	// Message receiving loop
 	for {
@@ -117,6 +130,8 @@ func readMessage(msg genetlink.Message) error {
 		printNodes(nodes)
 	}
 	sendIPFIX(nodes)
+
+	IOAM_MESSAGE_COUNT++
 
 	return nil
 }
@@ -236,4 +251,24 @@ func parseNodeData(data []byte, traceType uint32) (IOAMData, error) {
 	}
 
 	return node, nil
+}
+
+// writeStats writes the number of received IOAM messages to a file
+func writeStats(fileName string) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatalf("Error opening stats file: %v", err)
+	}
+	defer file.Close()
+
+	for range ticker.C {
+		// Update file statistics
+		file.Seek(0, io.SeekStart)
+		if _, err := fmt.Fprintf(file, "%d", IOAM_MESSAGE_COUNT); err != nil {
+			log.Fatalf("Error writing to stats file: %v", err)
+		}
+	}
 }
