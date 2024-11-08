@@ -45,10 +45,11 @@ const (
 )
 
 var (
-	SEQ_NUM            uint32 = 0
-	COLLECTOR_ADDR     string
-	CONSOLE_OUT        bool
-	IOAM_MESSAGE_COUNT uint64 = 0
+	SEQ_NUM                uint32 = 0
+	COLLECTOR_ADDR         string
+	CONSOLE_OUT            bool
+	IOAM_MESSAGE_COUNT     uint64 = 0
+	OVERFLOW_MESSAGE_COUNT uint64 = 0
 )
 
 func main() {
@@ -69,7 +70,10 @@ func main() {
 	}
 	defer conn.Close()
 
-	conn.SetReadBuffer(1024 * 1024)
+	// Set read buffer to 0 bytes to avoid data desynchronizations
+	conn.SetReadBuffer(0)
+	// Disable acknowledgements to save bandwidth
+	conn.SetOption(netlink.CapAcknowledge, false)
 
 	// Get genetlink IOAM6 family ID
 	family, err := conn.GetFamily(IOAM6_GENL_NAME)
@@ -93,17 +97,18 @@ func main() {
 	}
 
 	go writeStats(STATS_FILE)
-	fmt.Println("[IOAM EXPORTER] Started")
+	fmt.Println("[IOAM exporter] Started...")
 
 	// Message receiving loop
 	for {
 		messages, _, err := conn.Receive()
 		if err != nil {
-			log.Printf("failed to receive messages: %v", err)
+			// Assume that the error is due to a buffer overflow (ENOBUFS)
+			OVERFLOW_MESSAGE_COUNT++
 		}
 
 		for _, msg := range messages {
-			readMessage(msg)
+			go readMessage(msg)
 		}
 	}
 }
@@ -267,7 +272,7 @@ func writeStats(fileName string) {
 	for range ticker.C {
 		// Update file statistics
 		file.Seek(0, io.SeekStart)
-		if _, err := fmt.Fprintf(file, "%d", IOAM_MESSAGE_COUNT); err != nil {
+		if _, err := fmt.Fprintf(file, "IOAM messages\t%d\nOverflow errors\t%d\n", IOAM_MESSAGE_COUNT, OVERFLOW_MESSAGE_COUNT); err != nil {
 			log.Fatalf("Error writing to stats file: %v", err)
 		}
 	}
