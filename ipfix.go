@@ -17,7 +17,7 @@ func sendIPFIX(data []IOAMData) error {
 	}
 
 	// Send IPFIX message via UDP
-	conn, err := net.Dial("udp", COLLECTOR_ADDR)
+	conn, err := net.Dial("udp", collectorAddr)
 	if err != nil {
 		log.Printf("failed to establish UDP connection: %v", err)
 		return err
@@ -38,7 +38,7 @@ func createIPFIXMessage(data []IOAMData) ([]byte, error) {
 		Version:    10,
 		Length:     0, // Placeholder, will be updated later
 		ExportTime: uint32(time.Now().Unix()),
-		SeqNumber:  SEQ_NUM,
+		SeqNumber:  seqNum,
 		DomainID:   IPFIX_DOMAIN_ID,
 	}
 	if err := binary.Write(&buf, binary.BigEndian, ipfixHeader); err != nil {
@@ -78,7 +78,7 @@ func createIPFIXMessage(data []IOAMData) ([]byte, error) {
 	binary.BigEndian.PutUint16(packet[2:4], uint16(len(packet)))
 
 	// Increment seqNum
-	SEQ_NUM += uint32(len(data))
+	seqNum += uint32(len(data))
 
 	return packet, nil
 }
