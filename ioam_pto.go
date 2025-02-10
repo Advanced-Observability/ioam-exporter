@@ -8,7 +8,7 @@ import (
 )
 
 // Parses the netlink attributes for IOAM PTO
-func extractPtoData(attrs []netlink.Attribute) ([]IOAMData, error) {
+func extractPtoData(attrs []netlink.Attribute) ([]IoamNodePTO, error) {
 	var nodeLen uint8
 	var traceType uint32
 	var data []byte
@@ -26,7 +26,7 @@ func extractPtoData(attrs []netlink.Attribute) ([]IOAMData, error) {
 		}
 	}
 
-	var nodes []IOAMData
+	var nodes []IoamNodePTO
 	offset := 0
 	for offset < len(data) {
 		node, err := parseIoamPtoNode(data[offset:offset+int(nodeLen)*4], traceType)
@@ -38,23 +38,30 @@ func extractPtoData(attrs []netlink.Attribute) ([]IOAMData, error) {
 
 		if traceType&TRACE_TYPE_BIT22_MASK != 0 {
 			node.OssLen = data[offset]
+			if node.OssLen == 0 {
+				offset += 4
+				nodes = append(nodes, node)
+				continue
+			}
+
 			node.OssSchema = binary.BigEndian.Uint32(data[offset:offset+4]) & 0xFFFFFF
+
 			if len(data[offset:]) < 4+int(node.OssLen)*4 {
 				return nil, errors.New("invalid packet length")
 			}
-			node.Snapshot = data[4+offset : 4+node.OssLen*4]
+			node.Snapshot = data[4+offset : 4+offset+int(node.OssLen)*4]
 			offset += 4 + int(node.OssLen)*4
 		}
 
-		nodes = append([]IOAMData{node}, nodes...)
+		nodes = append(nodes, node)
 	}
 
 	return nodes, nil
 }
 
 // parseNodeData parses a node data into a IOAMData structure
-func parseIoamPtoNode(data []byte, traceType uint32) (IOAMData, error) {
-	node := IOAMData{}
+func parseIoamPtoNode(data []byte, traceType uint32) (IoamNodePTO, error) {
+	node := IoamNodePTO{}
 	offset := 0
 
 	if traceType&TRACE_TYPE_BIT0_MASK != 0 {
@@ -75,20 +82,12 @@ func parseIoamPtoNode(data []byte, traceType uint32) (IOAMData, error) {
 		node.TimestampFrac = binary.BigEndian.Uint32(data[offset : offset+4])
 		offset += 4
 	}
-	if traceType&TRACE_TYPE_BIT4_MASK != 0 {
-		node.TransitDelay = binary.BigEndian.Uint32(data[offset : offset+4])
-		offset += 4
-	}
 	if traceType&TRACE_TYPE_BIT5_MASK != 0 {
 		node.NamespaceData = binary.BigEndian.Uint32(data[offset : offset+4])
 		offset += 4
 	}
 	if traceType&TRACE_TYPE_BIT6_MASK != 0 {
 		node.QueueDepth = binary.BigEndian.Uint32(data[offset : offset+4])
-		offset += 4
-	}
-	if traceType&TRACE_TYPE_BIT7_MASK != 0 {
-		node.CsumComp = binary.BigEndian.Uint32(data[offset : offset+4])
 		offset += 4
 	}
 	if traceType&TRACE_TYPE_BIT8_MASK != 0 {
@@ -104,10 +103,6 @@ func parseIoamPtoNode(data []byte, traceType uint32) (IOAMData, error) {
 	if traceType&TRACE_TYPE_BIT10_MASK != 0 {
 		node.NamespaceDataWide = binary.BigEndian.Uint64(data[offset : offset+8])
 		offset += 8
-	}
-	if traceType&TRACE_TYPE_BIT22_MASK != 0 {
-		node.BufferOccupancy = binary.BigEndian.Uint32(data[offset : offset+4])
-		offset += 4
 	}
 
 	return node, nil

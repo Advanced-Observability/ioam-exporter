@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -26,7 +27,7 @@ func main() {
 	defer conn.Close()
 
 	go writeStats(STATS_FILE)
-	fmt.Println("[IOAM exporter] Started...")
+	log.Println("[IOAM exporter] Started...")
 
 	// Message receiving loop
 	for {
@@ -44,46 +45,66 @@ func main() {
 
 // Parses the netlink message and extracts IOAMData
 func readMessage(msg genetlink.Message) error {
-	if msg.Header.Command != IOAM6_EVENT_TYPE_TRACE {
-		return nil
-	}
-
 	attrs, err := netlink.UnmarshalAttributes(msg.Data)
 	if err != nil {
 		log.Printf("failed to parse attributes: %v", err)
 		return err
 	}
 
-	nodes, err := extractPtoData(attrs)
-	if err != nil {
-		log.Printf("failed to build IOAMdata: %v", err)
-		return err
-	}
+	if msg.Header.Command == IOAM6_EVENT_TYPE_TRACE {
+		nodes, err := extractPtoData(attrs)
+		if err != nil {
+			log.Printf("failed to build IOAMdata: %v", err)
+			return err
+		}
 
-	if consoleOut {
-		printNodes(nodes)
-	}
+		if consoleOut {
+			for _, node := range nodes {
+				fmt.Printf("%+v\n\n", node)
+			}
+			fmt.Println("\n----\n")
+		}
 
-	if collectorAddr != "" {
-		sendIPFIX(nodes)
+		if collectorAddr != "" {
+			var data bytes.Buffer
+			for _, d := range nodes {
+				encodeIoamPto(&data, d)
+			}
+			msg, err := createIPFIXMessage(data, IOAM6_EVENT_TYPE_TRACE)
+			if err != nil {
+				log.Printf("could not create ipfix message: %v", err)
+				return err
+			}
+			sendIPFIX(msg)
+		}
+	} else if msg.Header.Command == IOAM6_EVENT_TYPE_DEX {
+		node, err := extractDexData(attrs)
+		if err != nil {
+			log.Printf("failed to build IoamNodeDEX: %d\n", err)
+			return err
+		}
+
+		if consoleOut {
+			fmt.Printf("%+v\n\n", node)
+		}
+
+		if collectorAddr != "" {
+			var data bytes.Buffer
+			encodeIoamDex(&data, node)
+			msg, err := createIPFIXMessage(data, IOAM6_EVENT_TYPE_DEX)
+			if err != nil {
+				log.Printf("could not create ipfix message: %v", err)
+				return err
+			}
+			sendIPFIX(msg)
+		}
+	} else {
+		log.Println(("unexpected generic netlink command"))
 	}
 
 	ioamCount++
 
 	return nil
-}
-
-// Prints the IOAMData structs to the console
-func printNodes(nodes []IOAMData) {
-	for _, node := range nodes {
-		fmt.Printf("%+v\n", node)
-
-		if node.Snapshot != nil {
-			fmt.Printf("Snapshot: %s\n", string(node.Snapshot))
-		}
-
-		fmt.Printf("\n")
-	}
 }
 
 // Writes the number of received IOAM messages to a file
