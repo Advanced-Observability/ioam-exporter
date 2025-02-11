@@ -27,7 +27,7 @@ func main() {
 	defer conn.Close()
 
 	go writeStats(STATS_FILE)
-	log.Println("[IOAM exporter] Started...")
+	log.Println("[IOAM Exporter] Started...")
 
 	// Message receiving loop
 	for {

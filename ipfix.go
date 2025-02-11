@@ -150,13 +150,30 @@ func encodeIoamPto(buf *bytes.Buffer, d IoamNodePTO) {
 	binary.Write(buf, binary.BigEndian, d.IngressIdWide)
 	binary.Write(buf, binary.BigEndian, d.EgressIdWide)
 	binary.Write(buf, binary.BigEndian, d.NamespaceDataWide)
+	binary.Write(buf, binary.BigEndian, []byte{
+		byte(d.OssSchema),
+		byte(d.OssSchema >> 8),
+		byte(d.OssSchema >> 16),
+	})
 
 	// Write Snapshot variable element
-	buf.WriteByte(4 * d.OssLen)
-	binary.Write(buf, binary.BigEndian, d.OssSchema)
 	if d.Snapshot != nil {
+		// Write Snapshot length
+		var realOssLen uint16 = 4 * uint16(d.OssLen)
+		if realOssLen < 255 {
+			buf.WriteByte(4 * d.OssLen)
+		} else {
+			buf.WriteByte(255)
+			binary.Write(buf, binary.BigEndian, realOssLen)
+		}
+
+		// Write Snapshot data
 		buf.Write(d.Snapshot)
+	} else {
+		// Empty Snapshot
+		buf.WriteByte(0)
 	}
+
 }
 
 // Encodes an IOAMData struct into a byte slice

@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/mdlayher/genetlink"
 	"github.com/mdlayher/netlink"
@@ -16,9 +18,14 @@ func parseCliOptions() {
 	showHelp := flag.Bool("h", false, "View help")
 	flag.Parse()
 
-	if *showHelp || (collectorAddr == "" && !consoleOut) {
+	if *showHelp {
 		flag.PrintDefaults()
-		return
+		os.Exit(0)
+	}
+	if collectorAddr == "" && !consoleOut {
+		fmt.Println("Use a collector or console print")
+		flag.PrintDefaults()
+		os.Exit(1)
 	}
 }
 

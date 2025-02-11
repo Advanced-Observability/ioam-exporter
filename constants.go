@@ -76,7 +76,7 @@ const (
 
 var ioamPtoTemplate = IPFIXTemplateRecord{
 	TemplateId: TEMPLATE_ID, // Unique Template ID for IOAM Data
-	FieldCount: 14,          // Including the Snapshot field, which is variable-length and enterprise-specific
+	FieldCount: 15,          // Including the Snapshot field, which is variable-length and enterprise-specific
 	Fields: []IPFIXFieldSpecifier{
 		{FieldId: (0 | 0x8000), FieldLen: 4},      // TraceType (4 bytes)
 		{FieldId: (1 | 0x8000), FieldLen: 1},      // HopLimit (1 byte)
@@ -91,7 +91,8 @@ var ioamPtoTemplate = IPFIXTemplateRecord{
 		{FieldId: (10 | 0x8000), FieldLen: 4},     // IngressIdWide (4 bytes)
 		{FieldId: (11 | 0x8000), FieldLen: 4},     // EgressIdWide (4 bytes)
 		{FieldId: (12 | 0x8000), FieldLen: 8},     // NamespaceDataWide (8 bytes)
-		{FieldId: (13 | 0x8000), FieldLen: 65535}, // Opaque State Snapshot (variable length)
+		{FieldId: (13 | 0x8000), FieldLen: 3},     // NamespaceDataWide (8 bytes)
+		{FieldId: (14 | 0x8000), FieldLen: 65535}, // Opaque State Snapshot (variable length)
 	},
 }
 
