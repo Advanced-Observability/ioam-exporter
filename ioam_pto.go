@@ -8,15 +8,16 @@ import (
 )
 
 // Parses the netlink attributes for IOAM PTO
-func extractPtoData(attrs []netlink.Attribute) ([]IoamNodePTO, error) {
+func extractPtoData(attrs []netlink.Attribute) ([]IoamNode, error) {
 	var nodeLen uint8
 	var traceType uint32
+	var namespace uint16
 	var data []byte
 
 	for _, attr := range attrs {
 		switch attr.Type {
 		case IOAM6_EVENT_ATTR_TRACE_NAMESPACE:
-			continue
+			namespace = binary.LittleEndian.Uint16(attr.Data)
 		case IOAM6_EVENT_ATTR_TRACE_NODELEN:
 			nodeLen = attr.Data[0]
 		case IOAM6_EVENT_ATTR_TRACE_TYPE:
@@ -26,11 +27,12 @@ func extractPtoData(attrs []netlink.Attribute) ([]IoamNodePTO, error) {
 		}
 	}
 
-	var nodes []IoamNodePTO
+	var nodes []IoamNode
 	offset := 0
 	for offset < len(data) {
 		node, err := parseIoamPtoNode(data[offset:offset+int(nodeLen)*4], traceType)
 		node.TraceType = traceType
+		node.Namespace = namespace
 		if err != nil {
 			return nil, err
 		}
@@ -60,8 +62,8 @@ func extractPtoData(attrs []netlink.Attribute) ([]IoamNodePTO, error) {
 }
 
 // parseNodeData parses a node data into a IOAMData structure
-func parseIoamPtoNode(data []byte, traceType uint32) (IoamNodePTO, error) {
-	node := IoamNodePTO{}
+func parseIoamPtoNode(data []byte, traceType uint32) (IoamNode, error) {
+	node := IoamNode{}
 	offset := 0
 
 	if traceType&TRACE_TYPE_BIT0_MASK != 0 {
@@ -92,7 +94,7 @@ func parseIoamPtoNode(data []byte, traceType uint32) (IoamNodePTO, error) {
 	}
 	if traceType&TRACE_TYPE_BIT8_MASK != 0 {
 		node.HopLimit = data[offset]
-		node.IdWide = binary.BigEndian.Uint64(data[offset:offset+8]) & 0xFFFFFFFFFFFFFF
+		node.NodeIdWide = binary.BigEndian.Uint64(data[offset:offset+8]) & 0xFFFFFFFFFFFFFF
 		offset += 8
 	}
 	if traceType&TRACE_TYPE_BIT9_MASK != 0 {

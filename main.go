@@ -51,31 +51,12 @@ func readMessage(msg genetlink.Message) error {
 		return err
 	}
 
+	var nodes []IoamNode
 	if msg.Header.Command == IOAM6_EVENT_TYPE_TRACE {
-		nodes, err := extractPtoData(attrs)
+		nodes, err = extractPtoData(attrs)
 		if err != nil {
 			log.Printf("failed to build IOAMdata: %v", err)
 			return err
-		}
-
-		if consoleOut {
-			for _, node := range nodes {
-				fmt.Printf("%+v\n\n", node)
-			}
-			fmt.Println("\n----\n")
-		}
-
-		if collectorAddr != "" {
-			var data bytes.Buffer
-			for _, d := range nodes {
-				encodeIoamPto(&data, d)
-			}
-			msg, err := createIPFIXMessage(data, IOAM6_EVENT_TYPE_TRACE)
-			if err != nil {
-				log.Printf("could not create ipfix message: %v", err)
-				return err
-			}
-			sendIPFIX(msg)
 		}
 	} else if msg.Header.Command == IOAM6_EVENT_TYPE_DEX {
 		node, err := extractDexData(attrs)
@@ -83,23 +64,29 @@ func readMessage(msg genetlink.Message) error {
 			log.Printf("failed to build IoamNodeDEX: %d\n", err)
 			return err
 		}
-
-		if consoleOut {
-			fmt.Printf("%+v\n\n", node)
-		}
-
-		if collectorAddr != "" {
-			var data bytes.Buffer
-			encodeIoamDex(&data, node)
-			msg, err := createIPFIXMessage(data, IOAM6_EVENT_TYPE_DEX)
-			if err != nil {
-				log.Printf("could not create ipfix message: %v", err)
-				return err
-			}
-			sendIPFIX(msg)
-		}
+		nodes = append(nodes, node)
 	} else {
 		log.Println(("unexpected generic netlink command"))
+		return nil
+	}
+
+	if consoleOut {
+		for _, node := range nodes {
+			fmt.Printf("%+v\n\n", node)
+		}
+	}
+
+	if collectorAddr != "" {
+		var data bytes.Buffer
+		for _, d := range nodes {
+			encodeIoam(&data, d)
+		}
+		msg, err := createIPFIXMessage(data, nodes[0].TraceType, nodes[0].isDex)
+		if err != nil {
+			log.Printf("could not create ipfix message: %v", err)
+			return err
+		}
+		sendIPFIX(msg)
 	}
 
 	ioamCount++

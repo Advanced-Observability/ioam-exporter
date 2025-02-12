@@ -24,7 +24,7 @@ func sendIPFIX(msg []byte) error {
 }
 
 // Creates an IPFIX message containing the given data for the given ioam optionType
-func createIPFIXMessage(data bytes.Buffer, optionType int) ([]byte, error) {
+func createIPFIXMessage(data bytes.Buffer, traceType uint32, isDex bool) ([]byte, error) {
 	var buf bytes.Buffer
 
 	// IPFIX Header
@@ -40,13 +40,7 @@ func createIPFIXMessage(data bytes.Buffer, optionType int) ([]byte, error) {
 	}
 
 	// IPFIX Template Set
-	var template []byte
-	var err error
-	if optionType == IOAM6_EVENT_TYPE_TRACE {
-		template, err = createIOAMTemplateSet(ioamPtoTemplate)
-	} else if optionType == IOAM6_EVENT_TYPE_DEX {
-		template, err = createIOAMTemplateSet(ioamDexTemplate)
-	}
+	var template, err = createIOAMTemplateSet(traceType, isDex)
 	if err != nil {
 		log.Printf("failed to create template set: %v", err)
 		return nil, err
@@ -82,8 +76,69 @@ func createIPFIXMessage(data bytes.Buffer, optionType int) ([]byte, error) {
 }
 
 // Creates an IPFIX template set for IOAM
-func createIOAMTemplateSet(template IPFIXTemplateRecord) ([]byte, error) {
+func createIOAMTemplateSet(traceType uint32, isDex bool) ([]byte, error) {
 	var buf bytes.Buffer
+	var fieldCount uint16 = 0
+	var fields []IPFIXFieldSpecifier
+
+	// Add fields based on the trace type
+	if traceType&TRACE_TYPE_BIT0_MASK != 0 || traceType&TRACE_TYPE_BIT8_MASK != 0 {
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: 0 | 0x8000, FieldLen: 1})
+		fieldCount++
+	}
+
+	if traceType&TRACE_TYPE_BIT0_MASK != 0 {
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: 1 | 0x8000, FieldLen: 3})
+		fieldCount++
+	}
+
+	if traceType&TRACE_TYPE_BIT1_MASK != 0 {
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: 2 | 0x8000, FieldLen: 2})
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: 3 | 0x8000, FieldLen: 2})
+		fieldCount += 2
+	}
+
+	if traceType&TRACE_TYPE_BIT2_MASK != 0 {
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: 4 | 0x8000, FieldLen: 4})
+		fieldCount++
+	}
+
+	if traceType&TRACE_TYPE_BIT3_MASK != 0 {
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: 5 | 0x8000, FieldLen: 4})
+		fieldCount++
+	}
+
+	if traceType&TRACE_TYPE_BIT5_MASK != 0 {
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: 6 | 0x8000, FieldLen: 4})
+		fieldCount++
+	}
+
+	if traceType&TRACE_TYPE_BIT6_MASK != 0 {
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: 7 | 0x8000, FieldLen: 4})
+		fieldCount++
+	}
+
+	if traceType&TRACE_TYPE_BIT8_MASK != 0 {
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: 8 | 0x8000, FieldLen: 7})
+		fieldCount++
+	}
+
+	if traceType&TRACE_TYPE_BIT9_MASK != 0 {
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: 9 | 0x8000, FieldLen: 4})
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: 10 | 0x8000, FieldLen: 4})
+		fieldCount += 2
+	}
+
+	if traceType&TRACE_TYPE_BIT10_MASK != 0 {
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: 11 | 0x8000, FieldLen: 8})
+		fieldCount++
+	}
+
+	// Opaque State Snapshot (variable length)
+	if traceType&TRACE_TYPE_BIT22_MASK != 0 {
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: (12 | 0x8000), FieldLen: 65535})
+		fieldCount++
+	}
 
 	// Template Set Header
 	templateSetHeader := IPFIXSetHeader{
@@ -94,6 +149,13 @@ func createIOAMTemplateSet(template IPFIXTemplateRecord) ([]byte, error) {
 
 	if err := binary.Write(&buf, binary.BigEndian, templateSetHeader); err != nil {
 		return nil, err
+	}
+
+	// Template Fields
+	template := IPFIXTemplateRecord{
+		TemplateId: TEMPLATE_ID, // Unique Template ID for IOAM Data
+		FieldCount: fieldCount,          // Including the Snapshot field, which is variable-length and enterprise-specific
+		Fields: fields,
 	}
 
 	// Write Template ID and Field Count
@@ -124,92 +186,86 @@ func createIOAMTemplateSet(template IPFIXTemplateRecord) ([]byte, error) {
 }
 
 // Encodes an IOAMData struct into a byte slice
-func encodeIoamPto(buf *bytes.Buffer, d IoamNodePTO) {
-	binary.Write(buf, binary.BigEndian, d.TraceType)
-	buf.WriteByte(d.HopLimit)
-	binary.Write(buf, binary.BigEndian, []byte{
-		byte(d.NodeId),
-		byte(d.NodeId >> 8),
-		byte(d.NodeId >> 16),
-	}) // 24-bit Node ID
-	binary.Write(buf, binary.BigEndian, d.IngressId)
-	binary.Write(buf, binary.BigEndian, d.EgressId)
-	binary.Write(buf, binary.BigEndian, d.TimestampSecs)
-	binary.Write(buf, binary.BigEndian, d.TimestampFrac)
-	binary.Write(buf, binary.BigEndian, d.NamespaceData)
-	binary.Write(buf, binary.BigEndian, d.QueueDepth)
-	binary.Write(buf, binary.BigEndian, []byte{
-		byte(d.IdWide),
-		byte(d.IdWide >> 8),
-		byte(d.IdWide >> 16),
-		byte(d.IdWide >> 24),
-		byte(d.IdWide >> 32),
-		byte(d.IdWide >> 40),
-		byte(d.IdWide >> 48),
-	}) // 56-bit IdWide
-	binary.Write(buf, binary.BigEndian, d.IngressIdWide)
-	binary.Write(buf, binary.BigEndian, d.EgressIdWide)
-	binary.Write(buf, binary.BigEndian, d.NamespaceDataWide)
-	binary.Write(buf, binary.BigEndian, []byte{
-		byte(d.OssSchema),
-		byte(d.OssSchema >> 8),
-		byte(d.OssSchema >> 16),
-	})
+func encodeIoam(buf *bytes.Buffer, d IoamNode) {
+	if d.TraceType&TRACE_TYPE_BIT0_MASK != 0 || d.TraceType&TRACE_TYPE_BIT8_MASK != 0 {
+		buf.WriteByte(d.HopLimit)
+	}
 
-	// Write Snapshot variable element
-	if d.Snapshot != nil {
+	if d.TraceType&TRACE_TYPE_BIT0_MASK != 0 {
+		binary.Write(buf, binary.BigEndian, []byte{
+			byte(d.NodeId),
+			byte(d.NodeId >> 8),
+			byte(d.NodeId >> 16),
+		}) // 24-bit Node ID
+	}
+
+	if d.TraceType&TRACE_TYPE_BIT1_MASK != 0 {
+		binary.Write(buf, binary.BigEndian, d.IngressId)
+		binary.Write(buf, binary.BigEndian, d.EgressId)
+	}
+
+	if d.TraceType&TRACE_TYPE_BIT2_MASK != 0 {
+		binary.Write(buf, binary.BigEndian, d.TimestampSecs)
+	}
+
+	if d.TraceType&TRACE_TYPE_BIT3_MASK != 0 {
+		binary.Write(buf, binary.BigEndian, d.TimestampFrac)
+	}
+
+	if d.TraceType&TRACE_TYPE_BIT5_MASK != 0 {
+		binary.Write(buf, binary.BigEndian, d.NamespaceData)
+	}
+
+	if d.TraceType&TRACE_TYPE_BIT6_MASK != 0 {
+		binary.Write(buf, binary.BigEndian, d.QueueDepth)
+	}
+
+	if d.TraceType&TRACE_TYPE_BIT8_MASK != 0 {
+		binary.Write(buf, binary.BigEndian, []byte{
+			byte(d.NodeIdWide),
+			byte(d.NodeIdWide >> 8),
+			byte(d.NodeIdWide >> 16),
+			byte(d.NodeIdWide >> 24),
+			byte(d.NodeIdWide >> 32),
+			byte(d.NodeIdWide >> 40),
+			byte(d.NodeIdWide >> 48),
+		}) // 56-bit IdWide
+	}
+
+	if d.TraceType&TRACE_TYPE_BIT9_MASK != 0 {
+		binary.Write(buf, binary.BigEndian, d.IngressIdWide)
+		binary.Write(buf, binary.BigEndian, d.EgressIdWide)
+	}
+
+	if d.TraceType&TRACE_TYPE_BIT10_MASK != 0 {
+		binary.Write(buf, binary.BigEndian, d.NamespaceDataWide)
+	}
+
+	if d.TraceType&TRACE_TYPE_BIT22_MASK != 0 {
+		binary.Write(buf, binary.BigEndian, []byte{
+			byte(d.OssSchema),
+			byte(d.OssSchema >> 8),
+			byte(d.OssSchema >> 16),
+		})
+
 		// Write Snapshot length
-		var realOssLen uint16 = 4 * uint16(d.OssLen)
+		var realOssLen uint16 = uint16(len(d.Snapshot))
 		if realOssLen < 255 {
-			buf.WriteByte(4 * d.OssLen)
+			buf.WriteByte(uint8(realOssLen))
 		} else {
 			buf.WriteByte(255)
-			binary.Write(buf, binary.BigEndian, realOssLen)
+			binary.Write(buf, binary.BigEndian, []byte{
+				byte(realOssLen),
+				byte(realOssLen >> 8),
+			})
 		}
 
 		// Write Snapshot data
 		buf.Write(d.Snapshot)
-	} else {
-		// Empty Snapshot
-		buf.WriteByte(0)
 	}
 
-}
-
-// Encodes an IOAMData struct into a byte slice
-func encodeIoamDex(buf *bytes.Buffer, d IoamNodeDEX) {
-	binary.Write(buf, binary.BigEndian, d.Namespace)
-	binary.Write(buf, binary.BigEndian, d.DexFlowID)
-	binary.Write(buf, binary.BigEndian, d.DexSeqNum)
-	binary.Write(buf, binary.BigEndian, d.HopLimit)
-	binary.Write(buf, binary.BigEndian, d.NodeId)
-	binary.Write(buf, binary.BigEndian, d.IngressId)
-	binary.Write(buf, binary.BigEndian, d.EgressId)
-	binary.Write(buf, binary.BigEndian, d.TimestampSecs)
-	binary.Write(buf, binary.BigEndian, d.TimestampFrac)
-	binary.Write(buf, binary.BigEndian, d.NamespaceData)
-	binary.Write(buf, binary.BigEndian, d.QueueDepth)
-	binary.Write(buf, binary.BigEndian, d.HopLimitWide)
-	binary.Write(buf, binary.BigEndian, d.NodeIdWide)
-	binary.Write(buf, binary.BigEndian, d.IngressIdWide)
-	binary.Write(buf, binary.BigEndian, d.EgressIdWide)
-	binary.Write(buf, binary.BigEndian, d.NamespaceDataWide)
-	binary.Write(buf, binary.BigEndian, d.OssSchema)
-
-	// Write Snapshot variable element
-	if d.Snapshot != nil {
-		if d.OssLen < 255 {
-			buf.WriteByte(byte(d.OssLen))
-		} else {
-			buf.WriteByte(255)
-			binary.Write(buf, binary.BigEndian, d.OssLen)
-		}
-
-		// Write Snapshot data
-		buf.Write(d.Snapshot)
-	} else {
-		// Empty Snapshot
-		buf.WriteByte(0)
+	if d.isDex {
+		binary.Write(buf, binary.BigEndian, d.DexFlowID)
+		binary.Write(buf, binary.BigEndian, d.DexSeqNum)
 	}
-
 }
