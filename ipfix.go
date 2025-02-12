@@ -194,8 +194,22 @@ func encodeIoamDex(buf *bytes.Buffer, d IoamNodeDEX) {
 	binary.Write(buf, binary.BigEndian, d.IngressIdWide)
 	binary.Write(buf, binary.BigEndian, d.EgressIdWide)
 	binary.Write(buf, binary.BigEndian, d.NamespaceDataWide)
+	binary.Write(buf, binary.BigEndian, d.OssSchema)
+
+	// Write Snapshot variable element
 	if d.Snapshot != nil {
-		binary.Write(buf, binary.BigEndian, d.OssSchema)
+		if d.OssLen < 255 {
+			buf.WriteByte(byte(d.OssLen))
+		} else {
+			buf.WriteByte(255)
+			binary.Write(buf, binary.BigEndian, d.OssLen)
+		}
+
+		// Write Snapshot data
 		buf.Write(d.Snapshot)
+	} else {
+		// Empty Snapshot
+		buf.WriteByte(0)
 	}
+
 }

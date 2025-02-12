@@ -32,7 +32,8 @@ type IoamNodeDEX struct {
 	NodeIdWide                  uint64
 	IngressIdWide, EgressIdWide uint64
 	NamespaceDataWide           uint64
-	OssSchema                   uint32 // 24 bits used.
+	OssSchema                   uint32
+	OssLen                      uint32
 	Snapshot                    []byte
 }
 

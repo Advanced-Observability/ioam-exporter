@@ -98,7 +98,7 @@ var ioamPtoTemplate = IPFIXTemplateRecord{
 
 var ioamDexTemplate = IPFIXTemplateRecord{
 	TemplateId: TEMPLATE_ID, // Unique Template ID for IOAM Data
-	FieldCount: 17,          // Including the Snapshot field, which is variable-length and enterprise-specific
+	FieldCount: 18,          // Including the Snapshot field, which is variable-length and enterprise-specific
 	Fields: []IPFIXFieldSpecifier{
 		{FieldId: (0 | 0x8000), FieldLen: 2},      // DEX namespace
 		{FieldId: (1 | 0x8000), FieldLen: 4},      // DEX flow id
@@ -116,6 +116,7 @@ var ioamDexTemplate = IPFIXTemplateRecord{
 		{FieldId: (13 | 0x8000), FieldLen: 8},     // IngressIdWide
 		{FieldId: (14 | 0x8000), FieldLen: 8},     // EgressIdWide
 		{FieldId: (15 | 0x8000), FieldLen: 8},     // NamespaceDataWide
-		{FieldId: (16 | 0x8000), FieldLen: 65535}, // Opaque State Snapshot (variable length)
+		{FieldId: (16 | 0x8000), FieldLen: 4},     // OSSSchema
+		{FieldId: (17 | 0x8000), FieldLen: 65535}, // Opaque State Snapshot (variable length)
 	},
 }

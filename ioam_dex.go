@@ -50,6 +50,7 @@ func extractDexData(attrs []netlink.Attribute) (IoamNodeDEX, error) {
 			node.OssSchema = binary.BigEndian.Uint32(attr.Data)
 		case IOAM6_EVENT_ATTR_DEX_OSS_DATA:
 			node.Snapshot = attr.Data
+			node.OssLen = uint32(len(string(node.Snapshot)))
 		default:
 			log.Println("Unexpected attribute")
 		}
