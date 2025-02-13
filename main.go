@@ -12,7 +12,6 @@ import (
 )
 
 var (
-	seqNum        uint32 = 0
 	collectorAddr string = ""
 	consoleOut    bool   = false
 	ioamCount     uint64 = 0
@@ -26,7 +25,7 @@ func main() {
 	defer conn.Close()
 
 	go writeStats(STATS_FILE)
-	fmt.Println("[IOAM exporter] Started...")
+	log.Println("[IOAM Exporter] Started...")
 
 	// Message receiving loop
 	for {
@@ -44,46 +43,49 @@ func main() {
 
 // Parses the netlink message and extracts IOAMData
 func readMessage(msg genetlink.Message) error {
-	if msg.Header.Command != IOAM6_EVENT_TYPE_TRACE {
-		return nil
-	}
-
 	attrs, err := netlink.UnmarshalAttributes(msg.Data)
 	if err != nil {
 		log.Printf("failed to parse attributes: %v", err)
 		return err
 	}
 
-	nodes, err := extractPtoData(attrs)
-	if err != nil {
-		log.Printf("failed to build IOAMdata: %v", err)
-		return err
+	var nodes []IoamNode
+	if msg.Header.Command == IOAM6_EVENT_TYPE_TRACE {
+		nodes, err = extractPtoData(attrs)
+		if err != nil {
+			log.Printf("failed to build IOAMdata: %v", err)
+			return err
+		}
+	} else if msg.Header.Command == IOAM6_EVENT_TYPE_DEX {
+		node, err := extractDexData(attrs)
+		if err != nil {
+			log.Printf("failed to build IoamNodeDEX: %d\n", err)
+			return err
+		}
+		nodes = append(nodes, node)
+	} else {
+		log.Println(("unexpected generic netlink command"))
+		return nil
 	}
 
 	if consoleOut {
-		printNodes(nodes)
+		for _, node := range nodes {
+			fmt.Printf("%+v\n\n", node)
+		}
 	}
 
 	if collectorAddr != "" {
-		sendIPFIX(nodes)
+		msg, err := createIPFIXMessage(nodes)
+		if err != nil {
+			log.Printf("could not create ipfix message: %v", err)
+			return err
+		}
+		sendIPFIX(msg)
 	}
 
 	ioamCount++
 
 	return nil
-}
-
-// Prints the IOAMData structs to the console
-func printNodes(nodes []IOAMData) {
-	for _, node := range nodes {
-		fmt.Printf("%+v\n", node)
-
-		if node.Snapshot != nil {
-			fmt.Printf("Snapshot: %s\n", string(node.Snapshot))
-		}
-
-		fmt.Printf("\n")
-	}
 }
 
 // Writes the number of received IOAM messages to a file
