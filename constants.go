@@ -3,6 +3,7 @@ package main
 const (
 	STATS_FILE = "./exporterStats"
 
+	IPFIX_VERSION   = 10
 	ULIEGE_PEN_IANA = 10383
 	TEMPLATE_ID     = 293 // Must be higher than 255 (arbitrary)
 	IPFIX_DOMAIN_ID = 1
@@ -73,50 +74,3 @@ const (
 	TRACE_TYPE_BIT10_MASK = 1 << 13
 	TRACE_TYPE_BIT22_MASK = 1 << 1
 )
-
-var ioamPtoTemplate = IPFIXTemplateRecord{
-	TemplateId: TEMPLATE_ID, // Unique Template ID for IOAM Data
-	FieldCount: 15,          // Including the Snapshot field, which is variable-length and enterprise-specific
-	Fields: []IPFIXFieldSpecifier{
-		{FieldId: (0 | 0x8000), FieldLen: 4},      // TraceType (4 bytes)
-		{FieldId: (1 | 0x8000), FieldLen: 1},      // HopLimit (1 byte)
-		{FieldId: (2 | 0x8000), FieldLen: 3},      // NodeId (24 bits => 3 bytes)
-		{FieldId: (3 | 0x8000), FieldLen: 2},      // IngressId (2 bytes)
-		{FieldId: (4 | 0x8000), FieldLen: 2},      // EgressId (2 bytes)
-		{FieldId: (5 | 0x8000), FieldLen: 4},      // TimestampSecs (4 bytes)
-		{FieldId: (6 | 0x8000), FieldLen: 4},      // TimestampFrac (4 bytes)
-		{FieldId: (7 | 0x8000), FieldLen: 4},      // NamespaceData (4 bytes)
-		{FieldId: (8 | 0x8000), FieldLen: 4},      // QueueDepth (4 bytes)
-		{FieldId: (9 | 0x8000), FieldLen: 7},      // IdWide (56 bits => 7 bytes)
-		{FieldId: (10 | 0x8000), FieldLen: 4},     // IngressIdWide (4 bytes)
-		{FieldId: (11 | 0x8000), FieldLen: 4},     // EgressIdWide (4 bytes)
-		{FieldId: (12 | 0x8000), FieldLen: 8},     // NamespaceDataWide (8 bytes)
-		{FieldId: (13 | 0x8000), FieldLen: 3},     // NamespaceDataWide (8 bytes)
-		{FieldId: (14 | 0x8000), FieldLen: 65535}, // Opaque State Snapshot (variable length)
-	},
-}
-
-var ioamDexTemplate = IPFIXTemplateRecord{
-	TemplateId: TEMPLATE_ID, // Unique Template ID for IOAM Data
-	FieldCount: 18,          // Including the Snapshot field, which is variable-length and enterprise-specific
-	Fields: []IPFIXFieldSpecifier{
-		{FieldId: (0 | 0x8000), FieldLen: 2},      // DEX namespace
-		{FieldId: (1 | 0x8000), FieldLen: 4},      // DEX flow id
-		{FieldId: (2 | 0x8000), FieldLen: 4},      // DEX seq num
-		{FieldId: (3 | 0x8000), FieldLen: 4},      // HopLimit
-		{FieldId: (4 | 0x8000), FieldLen: 4},      // NodeId
-		{FieldId: (5 | 0x8000), FieldLen: 4},      // IngressId
-		{FieldId: (6 | 0x8000), FieldLen: 4},      // EgressId
-		{FieldId: (7 | 0x8000), FieldLen: 4},      // TimestampSecs
-		{FieldId: (8 | 0x8000), FieldLen: 4},      // TimestampFrac
-		{FieldId: (9 | 0x8000), FieldLen: 4},      // NamespaceData
-		{FieldId: (10 | 0x8000), FieldLen: 4},     // QueueDepth
-		{FieldId: (11 | 0x8000), FieldLen: 8},     // HopLimitWide
-		{FieldId: (12 | 0x8000), FieldLen: 8},     // NodeIdWide
-		{FieldId: (13 | 0x8000), FieldLen: 8},     // IngressIdWide
-		{FieldId: (14 | 0x8000), FieldLen: 8},     // EgressIdWide
-		{FieldId: (15 | 0x8000), FieldLen: 8},     // NamespaceDataWide
-		{FieldId: (16 | 0x8000), FieldLen: 4},     // OSSSchema
-		{FieldId: (17 | 0x8000), FieldLen: 65535}, // Opaque State Snapshot (variable length)
-	},
-}

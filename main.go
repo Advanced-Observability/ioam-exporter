@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -13,7 +12,6 @@ import (
 )
 
 var (
-	seqNum        uint32 = 0
 	collectorAddr string = ""
 	consoleOut    bool   = false
 	ioamCount     uint64 = 0
@@ -77,11 +75,7 @@ func readMessage(msg genetlink.Message) error {
 	}
 
 	if collectorAddr != "" {
-		var data bytes.Buffer
-		for _, d := range nodes {
-			encodeIoam(&data, d)
-		}
-		msg, err := createIPFIXMessage(data, nodes[0].TraceType, nodes[0].isDex)
+		msg, err := createIPFIXMessage(nodes)
 		if err != nil {
 			log.Printf("could not create ipfix message: %v", err)
 			return err
