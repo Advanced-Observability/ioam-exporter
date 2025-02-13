@@ -18,9 +18,9 @@ type IoamNode struct {
 	Snapshot                    []byte
 	DexFlowID                   uint32
 	DexSeqNum                   uint32
-	
-	hasDexFlowID                bool
-	hasDexSeqNum                bool
+
+	hasDexFlowID bool
+	hasDexSeqNum bool
 }
 
 type IPFIXHeader struct {
