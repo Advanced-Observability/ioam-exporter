@@ -28,7 +28,7 @@ func sendIPFIX(msg []byte) error {
 // Creates an IPFIX message containing the given data for the given ioam optionType
 func createIPFIXMessage(nodes []IoamNode) ([]byte, error) {
 	var buf bytes.Buffer
-	
+
 	// IPFIX Header
 	ipfixHeader := IPFIXHeader{
 		Version:    IPFIX_VERSION,
@@ -84,7 +84,7 @@ func createIOAMTemplateSet(traceType uint32, hasDexFlowID bool, hasDexSeqNum boo
 	var fields []IPFIXFieldSpecifier
 
 	// Add the Namespace field
-	fields = append(fields, IPFIXFieldSpecifier{FieldId: 0 | 0x8000, FieldLen: 2}) 
+	fields = append(fields, IPFIXFieldSpecifier{FieldId: 0 | 0x8000, FieldLen: 2})
 
 	// Add fields based on the trace type
 	if traceType&TRACE_TYPE_BIT0_MASK != 0 || traceType&TRACE_TYPE_BIT8_MASK != 0 {
@@ -141,17 +141,18 @@ func createIOAMTemplateSet(traceType uint32, hasDexFlowID bool, hasDexSeqNum boo
 
 	// Opaque State Snapshot (variable length)
 	if traceType&TRACE_TYPE_BIT22_MASK != 0 {
-		fields = append(fields, IPFIXFieldSpecifier{FieldId: (13 | 0x8000), FieldLen: 65535})
-		fieldCount++
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: (13 | 0x8000), FieldLen: 3})
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: (14 | 0x8000), FieldLen: 65535})
+		fieldCount += 2
 	}
 
 	if hasDexFlowID {
-		fields = append(fields, IPFIXFieldSpecifier{FieldId: (14 | 0x8000), FieldLen: 4})
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: (15 | 0x8000), FieldLen: 4})
 		fieldCount++
 	}
 
 	if hasDexSeqNum {
-		fields = append(fields, IPFIXFieldSpecifier{FieldId: (15 | 0x8000), FieldLen: 4})
+		fields = append(fields, IPFIXFieldSpecifier{FieldId: (16 | 0x8000), FieldLen: 4})
 		fieldCount++
 	}
 
@@ -170,7 +171,7 @@ func createIOAMTemplateSet(traceType uint32, hasDexFlowID bool, hasDexSeqNum boo
 	template := IPFIXTemplateRecord{
 		TemplateId: TEMPLATE_ID, // Unique Template ID for IOAM Data
 		FieldCount: fieldCount,
-		Fields: fields,
+		Fields:     fields,
 	}
 
 	// Write Template ID and Field Count
